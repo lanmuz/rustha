@@ -86,7 +86,7 @@ jobs:
           submodules: recursive
 
       - name: Restore bridge files
-        uses: actions/download-artifact@master
+        uses: actions/download-artifact@v4
         with:
           name: bridge-artifact
           path: ./
@@ -160,7 +160,10 @@ jobs:
         run: |
           # Windows: build RustDesk
           python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
-          mv ./flutter/build/windows/x64/runner/Release ./rustdesk
+          # Keep flutter default output directory intact (for artifact upload),
+          # and copy outputs to ./rustdesk for later packaging.
+          New-Item -ItemType Directory -Force -Path rustdesk | Out-Null
+          Copy-Item -Recurse -Force ./flutter/build/windows/x64/runner/Release/* ./rustdesk/
 
           # Download usbmmidd_v2.zip and extract it to ./rustdesk
           Invoke-WebRequest -Uri https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
@@ -212,19 +215,22 @@ jobs:
             ls -l ./libs/portable/Runner.res;
           fi
 
+      - name: Upload Windows flutter runner output (default path)
+        if: env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-windows-flutter-runner-${{ matrix.job.arch }}
+          path: |
+            ./flutter/build/windows/x64/runner/Release/**
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Download RustDeskTempTopMostWindow artifacts
-        uses: actions/download-artifact@master
+        uses: actions/download-artifact@v4
         if: ${{ inputs.upload-artifact }}
         with:
           name: topmostwindow-artifacts
           path: "./rustdesk"
-
-      - name: Upload unsigned
-        if: env.UPLOAD_ARTIFACT == 'true'
-        uses: actions/upload-artifact@master
-        with:
-          name: rustdesk-unsigned-windows-${{ matrix.job.arch }}
-          path: rustdesk
 
       - name: Sign rustdesk files
         if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
@@ -264,6 +270,27 @@ jobs:
         run: |
           BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput
 
+      - name: Upload Windows build outputs (runner Release)
+        if: env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-windows-${{ matrix.job.arch }}
+          path: |
+            ./rustdesk/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Windows installers (exe/msi)
+        if: env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-windows-installers-${{ matrix.job.arch }}
+          path: |
+            ./SignOutput/*.exe
+            ./SignOutput/*.msi
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Publish Release
         uses: softprops/action-gh-release@v1
         if: env.UPLOAD_ARTIFACT == 'true'
@@ -278,8 +305,8 @@ jobs:
   build-for-windows-sciter:
     name: ${{ matrix.job.target }} (${{ matrix.job.os }})
     runs-on: ${{ matrix.job.os }}
-    # Temporarily disable this action due to additional test is needed.
-    # if: false
+    # 仅保留关键 Windows/Android：禁用 32-bit Windows(sciter) 构建。
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -387,10 +414,11 @@ jobs:
 
       - name: Upload unsigned
         if: env.UPLOAD_ARTIFACT == 'true'
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: rustdesk-unsigned-windows-${{ matrix.job.arch }}
           path: Release
+          retention-days: 30
 
       - name: Sign rustdesk files
         if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
@@ -443,13 +471,6 @@ jobs:
           - {
               arch: armv7,
               target: armv7-linux-androideabi,
-              os: ubuntu-24.04,
-              reltype: release,
-              suffix: "",
-            }
-          - {
-              arch: x86_64,
-              target: x86_64-linux-android,
               os: ubuntu-24.04,
               reltype: release,
               suffix: "",
@@ -566,7 +587,7 @@ jobs:
         shell: bash
 
       - name: Restore bridge files
-        uses: actions/download-artifact@master
+        uses: actions/download-artifact@v4
         with:
           name: bridge-artifact
           path: ./
@@ -613,10 +634,11 @@ jobs:
           esac
 
       - name: Upload Rustdesk library to Artifacts
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v4
         with:
           name: librustdesk.so.${{ matrix.job.target }}
           path: ./target/${{ matrix.job.target }}/release/liblibrustdesk.so
+          retention-days: 30
 
       - name: Build rustdesk
         shell: bash
@@ -636,7 +658,6 @@ jobs:
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-arm64 --split-per-abi
-              mv build/app/outputs/flutter-apk/app-arm64-v8a-${{ matrix.job.reltype }}.apk ../rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk
             ;;
             armv7-linux-androideabi)
               mkdir -p ./flutter/android/app/src/main/jniLibs/armeabi-v7a
@@ -645,7 +666,6 @@ jobs:
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-arm --split-per-abi
-              mv build/app/outputs/flutter-apk/app-armeabi-v7a-${{ matrix.job.reltype }}.apk ../rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk
             ;;
             x86_64-linux-android)
               mkdir -p ./flutter/android/app/src/main/jniLibs/x86_64
@@ -654,7 +674,6 @@ jobs:
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-x64 --split-per-abi
-              mv build/app/outputs/flutter-apk/app-x86_64-${{ matrix.job.reltype }}.apk ../rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk
             ;;
             i686-linux-android)
               mkdir -p ./flutter/android/app/src/main/jniLibs/x86
@@ -663,12 +682,9 @@ jobs:
               # build flutter
               pushd flutter
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-x86 --split-per-abi
-              mv build/app/outputs/flutter-apk/app-x86-${{ matrix.job.reltype }}.apk ../rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk
             ;;
           esac
           popd
-          mkdir -p signed-apk; pushd signed-apk
-          mv ../rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk .
 
       # https://github.com/r0adkll/sign-android-release/issues/84#issuecomment-1889636075
       - name: Setup sign tool version variable
@@ -683,7 +699,7 @@ jobs:
         if: env.ANDROID_SIGNING_KEY != null
         id: sign-rustdesk
         with:
-          releaseDirectory: ./signed-apk
+          releaseDirectory: ./flutter/build/app/outputs/flutter-apk
           signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
           alias: ${{ secrets.ANDROID_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
@@ -692,12 +708,15 @@ jobs:
           # env.ANDROID_SIGN_TOOL_VERSION is set by Step "Setup sign tool version variable"
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_SIGN_TOOL_VERSION }}
 
-      - name: Upload Artifacts
-        if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
-        uses: actions/upload-artifact@master
+      - name: Upload APKs to Artifacts (all *.apk)
+        if: env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@v4
         with:
-          name: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
-          path: ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+          name: rustdesk-android-apks-${{ matrix.job.target }}
+          path: |
+            ./flutter/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Publish signed apk package
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
@@ -706,7 +725,7 @@ jobs:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+            ./flutter/build/app/outputs/flutter-apk/*.apk
 
       - name: Publish unsigned apk package
         if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
@@ -715,7 +734,7 @@ jobs:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            signed-apk/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
+            ./flutter/build/app/outputs/flutter-apk/*.apk
 
   build-rustdesk-android-universal:
     needs: [build-rustdesk-android]
@@ -724,7 +743,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       reltype: release
-      x86_target: "" # can be ",android-x86"
+      x86_target: "" # can be ",android-x86" (如需 x86 再开启)
       suffix: ""
     steps:
       - name: Free Disk Space (Ubuntu)
@@ -803,32 +822,26 @@ jobs:
           add-to-path: true
 
       - name: Restore bridge files
-        uses: actions/download-artifact@master
+        uses: actions/download-artifact@v4
         with:
           name: bridge-artifact
           path: ./
 
       - name: Download Rustdesk library from Artifacts
-        uses: actions/download-artifact@master
+        uses: actions/download-artifact@v4
         with:
           name: librustdesk.so.aarch64-linux-android
           path: ./flutter/android/app/src/main/jniLibs/arm64-v8a
 
       - name: Download Rustdesk library from Artifacts
-        uses: actions/download-artifact@master
+        uses: actions/download-artifact@v4
         with:
           name: librustdesk.so.armv7-linux-androideabi
           path: ./flutter/android/app/src/main/jniLibs/armeabi-v7a
 
       - name: Download Rustdesk library from Artifacts
-        uses: actions/download-artifact@master
-        with:
-          name: librustdesk.so.x86_64-linux-android
-          path: ./flutter/android/app/src/main/jniLibs/x86_64
-
-      - name: Download Rustdesk library from Artifacts
         if: ${{ env.reltype == 'debug' }}
-        uses: actions/download-artifact@master
+        uses: actions/download-artifact@v4
         with:
           name: librustdesk.so.i686-linux-android
           path: ./flutter/android/app/src/main/jniLibs/x86
@@ -849,18 +862,14 @@ jobs:
           cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/arm64-v8a/
           mv ./flutter/android/app/src/main/jniLibs/armeabi-v7a/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/armeabi-v7a/librustdesk.so
           cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so ./flutter/android/app/src/main/jniLibs/armeabi-v7a/
-          mv ./flutter/android/app/src/main/jniLibs/x86_64/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86_64/librustdesk.so
-          cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/x86_64/
           if [ "${{ env.reltype }}" = "debug" ]; then
             mv ./flutter/android/app/src/main/jniLibs/x86/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86/librustdesk.so
             cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/x86/
           fi
           # build flutter
           pushd flutter
-          flutter build apk "--${{ env.reltype }}" --target-platform android-arm64,android-arm,android-x64${{ env.x86_target }}
+          flutter build apk "--${{ env.reltype }}" --target-platform android-arm64,android-arm${{ env.x86_target }}
           popd
-          mkdir -p signed-apk
-          mv ./flutter/build/app/outputs/flutter-apk/app-${{ env.reltype }}.apk signed-apk/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
 
       # https://github.com/r0adkll/sign-android-release/issues/84#issuecomment-1889636075
       - name: Setup sign tool version variable
@@ -875,7 +884,7 @@ jobs:
         if: env.ANDROID_SIGNING_KEY != null
         id: sign-rustdesk
         with:
-          releaseDirectory: ./signed-apk
+          releaseDirectory: ./flutter/build/app/outputs/flutter-apk
           signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
           alias: ${{ secrets.ANDROID_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
@@ -884,12 +893,15 @@ jobs:
           # env.ANDROID_SIGN_TOOL_VERSION is set by Step "Setup sign tool version variable"
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_SIGN_TOOL_VERSION }}
 
-      - name: Upload Artifacts
-        if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
-        uses: actions/upload-artifact@master
+      - name: Upload universal APK to Artifacts (all *.apk)
+        if: env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@v4
         with:
-          name: rustdesk-${{ env.VERSION }}-universal.apk
-          path: ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+          name: rustdesk-android-apks-universal
+          path: |
+            ./flutter/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Publish signed apk package
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
@@ -898,7 +910,7 @@ jobs:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+            ./flutter/build/app/outputs/flutter-apk/*.apk
 
       - name: Publish unsigned apk package
         if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
@@ -907,4 +919,4 @@ jobs:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            signed-apk/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
+            ./flutter/build/app/outputs/flutter-apk/*.apk
