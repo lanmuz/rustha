@@ -14,9 +14,7 @@ src/version.rs
 *tgz
 cert.pfx
 *.bak
-*png
-*svg
-*jpg
+!flutter/android/app/src/main/res/**/*.png
 sciter.dll
 **pdb
 src/bridge_generated.rs
