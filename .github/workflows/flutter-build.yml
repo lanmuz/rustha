@@ -216,7 +216,7 @@ jobs:
           fi
 
       - name: Upload Windows flutter runner output (default path)
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ inputs.upload-artifact }}
         uses: actions/upload-artifact@v4
         with:
           name: rustdesk-windows-flutter-runner-${{ matrix.job.arch }}
@@ -233,7 +233,7 @@ jobs:
           path: "./rustdesk"
 
       - name: Sign rustdesk files
-        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
+        if: ${{ inputs.upload-artifact }} && env.SIGN_BASE_URL != '-2'
         shell: bash
         run: |
           pip3 install requests argparse
@@ -241,7 +241,7 @@ jobs:
 
       - name: Build self-extracted executable
         shell: bash
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ inputs.upload-artifact }}
         run: |
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
@@ -255,7 +255,7 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Build msi
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ inputs.upload-artifact }}
         run: |
           pushd ./res/msi
           python preprocess.py --arp -d ../../rustdesk
@@ -265,13 +265,13 @@ jobs:
           sha256sum ../../SignOutput/rustdesk-*.msi
 
       - name: Sign rustdesk self-extracted file
-        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
+        if: ${{ inputs.upload-artifact }} && env.SIGN_BASE_URL != '-2'
         shell: bash
         run: |
           BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput
 
       - name: Upload Windows build outputs (runner Release)
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ inputs.upload-artifact }}
         uses: actions/upload-artifact@v4
         with:
           name: rustdesk-windows-${{ matrix.job.arch }}
@@ -281,7 +281,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Windows installers (exe/msi)
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ inputs.upload-artifact }}
         uses: actions/upload-artifact@v4
         with:
           name: rustdesk-windows-installers-${{ matrix.job.arch }}
@@ -293,7 +293,7 @@ jobs:
 
       - name: Publish Release
         uses: softprops/action-gh-release@v1
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ inputs.upload-artifact }}
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
@@ -413,7 +413,7 @@ jobs:
           fi
 
       - name: Upload unsigned
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ inputs.upload-artifact }}
         uses: actions/upload-artifact@v4
         with:
           name: rustdesk-unsigned-windows-${{ matrix.job.arch }}
@@ -421,7 +421,7 @@ jobs:
           retention-days: 30
 
       - name: Sign rustdesk files
-        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
+        if: ${{ inputs.upload-artifact }} && env.SIGN_BASE_URL != '-2'
         shell: bash
         run: |
           pip3 install requests argparse
@@ -439,14 +439,14 @@ jobs:
           mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-sciter.exe
 
       - name: Sign rustdesk self-extracted file
-        if: env.UPLOAD_ARTIFACT == 'true' && env.SIGN_BASE_URL != '-2'
+        if: ${{ inputs.upload-artifact }} && env.SIGN_BASE_URL != '-2'
         shell: bash
         run: |
           BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput/
 
       - name: Publish Release
         uses: softprops/action-gh-release@v1
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ inputs.upload-artifact }}
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
@@ -644,6 +644,8 @@ jobs:
         shell: bash
         env:
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
           # Increase Gradle JVM memory for CI builds
@@ -709,7 +711,7 @@ jobs:
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_SIGN_TOOL_VERSION }}
 
       - name: Upload APKs to Artifacts (all *.apk)
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ inputs.upload-artifact }}
         uses: actions/upload-artifact@v4
         with:
           name: rustdesk-android-apks-${{ matrix.job.target }}
@@ -719,7 +721,7 @@ jobs:
           retention-days: 30
 
       - name: Publish signed apk package
-        if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
+        if: env.ANDROID_SIGNING_KEY != null && ${{ inputs.upload-artifact }}
         uses: softprops/action-gh-release@v1
         with:
           prerelease: true
@@ -728,7 +730,7 @@ jobs:
             ./flutter/build/app/outputs/flutter-apk/*.apk
 
       - name: Publish unsigned apk package
-        if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
+        if: env.ANDROID_SIGNING_KEY == null && ${{ inputs.upload-artifact }}
         uses: softprops/action-gh-release@v1
         with:
           prerelease: true
@@ -894,7 +896,7 @@ jobs:
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_SIGN_TOOL_VERSION }}
 
       - name: Upload universal APK to Artifacts (all *.apk)
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ inputs.upload-artifact }}
         uses: actions/upload-artifact@v4
         with:
           name: rustdesk-android-apks-universal
@@ -904,7 +906,7 @@ jobs:
           retention-days: 30
 
       - name: Publish signed apk package
-        if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
+        if: env.ANDROID_SIGNING_KEY != null && ${{ inputs.upload-artifact }}
         uses: softprops/action-gh-release@v1
         with:
           prerelease: true
@@ -913,7 +915,7 @@ jobs:
             ./flutter/build/app/outputs/flutter-apk/*.apk
 
       - name: Publish unsigned apk package
-        if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
+        if: env.ANDROID_SIGNING_KEY == null && ${{ inputs.upload-artifact }}
         uses: softprops/action-gh-release@v1
         with:
           prerelease: true
