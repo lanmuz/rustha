@@ -907,7 +907,7 @@ impl Config {
             // Mobile: generate a short, human-friendly device ID.
             // Requirement: random 4 lowercase letters a-z.
             let mut rng = rand::thread_rng();
-            let new_id: String = (0..4)
+            let new_id: String = (0..6)
                 .map(|_| char::from(b'a' + rng.gen_range(0..26) as u8))
                 .collect();
             return Some(new_id);
@@ -1137,10 +1137,23 @@ impl Config {
         // to-do: how about if one ip register a lot of ids?
         let id = Self::get_id();
         let mut rng = rand::thread_rng();
-        // Keep consistent with mobile auto-id format: 4 lowercase letters a-z.
-        let new_id: String = (0..4)
-            .map(|_| char::from(b'a' + rng.gen_range(0..26) as u8))
-            .collect();
+        let new_id: String = {
+            #[cfg(any(target_os = "android", target_os = "ios"))]
+            {
+                // Mobile: keep consistent with auto-id format (4 lowercase letters a-z).
+                (0..6)
+                    .map(|_| char::from(b'a' + rng.gen_range(0..26) as u8))
+                    .collect()
+            }
+
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            {
+                // Desktop: keep the long numeric random ID format.
+                // NOTE: Changing this to a short alpha ID increases collision risk and may break
+                // public rendezvous servers' validation/uniqueness assumptions.
+                rng.gen_range(1_000_000_000..2_000_000_000).to_string()
+            }
+        };
         Config::set_id(&new_id);
         log::info!("id updated from {} to {}", id, new_id);
     }
