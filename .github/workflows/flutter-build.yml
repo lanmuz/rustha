@@ -125,9 +125,17 @@ jobs:
           targets: ${{ matrix.job.target }}
           components: "rustfmt"
 
+      - name: Force clean Rust + invalidate cache
+        shell: bash
+        run: |
+          cargo clean
+          rm -rf target/
+          echo "CACHE_BUST=${{ github.sha }}" >> $GITHUB_ENV
+
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: ${{ matrix.job.os }}
+          key: ${{ matrix.job.target }}-${{ github.sha }}
 
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@v11
@@ -345,9 +353,17 @@ jobs:
           targets: ${{ matrix.job.target }}
           components: "rustfmt"
 
+      - name: Force clean Rust + invalidate cache
+        shell: bash
+        run: |
+          cargo clean
+          rm -rf target/
+          echo "CACHE_BUST=${{ github.sha }}" >> $GITHUB_ENV
+
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: ${{ matrix.job.os }}-sciter
+          key: ${{ matrix.job.target }}-${{ github.sha }}
 
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@v11
@@ -599,10 +615,16 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: "rustfmt"
 
+      - name: Force clean Rust + invalidate cache
+        run: |
+          cargo clean
+          rm -rf target/ flutter/android/app/src/main/jniLibs/*
+          echo "CACHE_BUST=${{ github.sha }}" >> $GITHUB_ENV
+
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: rustdesk-lib-cache-android # TODO: drop '-android' part after caches are invalidated
-          key: ${{ matrix.job.target }}
+          key: ${{ matrix.job.target }}-${{ github.sha }}
 
       - name: Build rustdesk lib
         env:
@@ -611,6 +633,7 @@ jobs:
         run: |
           rustup target add ${{ matrix.job.target }}
           cargo install cargo-ndk --version ${{ env.CARGO_NDK_VERSION }} --locked
+          # Rebuild Rust library for the current ABI with a fresh clean state
           case ${{ matrix.job.target }} in
             aarch64-linux-android)
               ./flutter/ndk_arm64.sh
@@ -653,6 +676,10 @@ jobs:
           sed -i "s/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx2g/g" ./flutter/android/gradle.properties
           # temporary use debug sign config
           sed -i "s/signingConfigs.release/signingConfigs.debug/g" ./flutter/android/app/build.gradle
+
+          # Verify libraries are built in this job and rebuilt from source changes
+          ls -l ./target/*/release/liblibrustdesk.so
+
           case ${{ matrix.job.target }} in
             aarch64-linux-android)
               mkdir -p ./flutter/android/app/src/main/jniLibs/arm64-v8a
@@ -660,6 +687,7 @@ jobs:
               cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/arm64-v8a/librustdesk.so
               # build flutter
               pushd flutter
+              flutter clean
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-arm64 --split-per-abi
             ;;
             armv7-linux-androideabi)
@@ -668,6 +696,7 @@ jobs:
               cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/armeabi-v7a/librustdesk.so
               # build flutter
               pushd flutter
+              flutter clean
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-arm --split-per-abi
             ;;
             x86_64-linux-android)
@@ -676,6 +705,7 @@ jobs:
               cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86_64/librustdesk.so
               # build flutter
               pushd flutter
+              flutter clean
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-x64 --split-per-abi
             ;;
             i686-linux-android)
@@ -684,6 +714,7 @@ jobs:
               cp ./target/${{ matrix.job.target }}/release/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86/librustdesk.so
               # build flutter
               pushd flutter
+              flutter clean
               flutter build apk "--${{ matrix.job.reltype }}" --target-platform android-x86 --split-per-abi
             ;;
           esac
@@ -872,6 +903,7 @@ jobs:
           fi
           # build flutter
           pushd flutter
+          flutter clean
           flutter build apk "--${{ env.reltype }}" --target-platform android-arm64,android-arm${{ env.x86_target }}
           popd
 
