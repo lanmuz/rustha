@@ -256,10 +256,9 @@ where
 
 
 pub fn is_valid_custom_id(id: &str) -> bool {
-    // NOTE: Keep this in sync with rendezvous server validation rules if you use public servers.
-    // We intentionally remove the previous fixed length restriction (6..16).
-    // Format: starts with a letter, followed by any number of [A-Za-z0-9_\-].
-    regex::Regex::new(r"^[a-zA-Z][\w-]*$")
+    // NOTE: Keep this in sync with rendezvous server validation rules.
+    // Requirement: starts with a letter, allow [A-Za-z0-9_\-], and at least 6 chars total.
+    regex::Regex::new(r"^[a-zA-Z][\w-]{5,}$")
         .unwrap()
         .is_match(id)
 }

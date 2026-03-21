@@ -543,6 +543,9 @@ pub fn store_path<T: serde::Serialize>(path: PathBuf, cfg: T) -> crate::ResultTy
 }
 
 impl Config {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    const MOBILE_AUTO_ID_LEN: usize = 6;
+
     fn load_<T: serde::Serialize + serde::de::DeserializeOwned + Default + std::fmt::Debug>(
         suffix: &str,
     ) -> T {
@@ -905,9 +908,9 @@ impl Config {
         #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             // Mobile: generate a short, human-friendly device ID.
-            // Requirement: random 6 lowercase letters a-z.
+            // Requirement: random lowercase letters a-z (server-side minimum is 6).
             let mut rng = rand::thread_rng();
-            let new_id: String = (0..6)
+            let new_id: String = (0..Self::MOBILE_AUTO_ID_LEN)
                 .map(|_| char::from(b'a' + rng.gen_range(0..26) as u8))
                 .collect();
             return Some(new_id);
@@ -1156,7 +1159,7 @@ impl Config {
             #[cfg(any(target_os = "android", target_os = "ios"))]
             {
                 // Mobile: keep consistent with auto-id format (6 lowercase letters a-z).
-                (0..6)
+                (0..Self::MOBILE_AUTO_ID_LEN)
                     .map(|_| char::from(b'a' + rng.gen_range(0..26) as u8))
                     .collect()
             }
