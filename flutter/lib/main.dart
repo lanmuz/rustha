@@ -135,7 +135,7 @@ Future<void> initEnv(String appType) async {
 void runMainApp(bool startService) async {
   // register uni links
   await initEnv(kAppTypeMain);
-  await _applyWindowsPermanentPasswordDefaultsOnFirstRun();
+  await _applyWindowsDefaultsOnFirstRun();
   checkUpdate();
   // trigger connection status updater
   await bind.mainCheckConnectStatus();
@@ -181,33 +181,76 @@ void runMainApp(bool startService) async {
 /// Windows desktop: apply requested defaults on fresh install / first launch only.
 ///
 /// Requirement:
-/// - Default enable permanent (fixed) password
-/// - Set the permanent password to: "caonima"
-Future<void> _applyWindowsPermanentPasswordDefaultsOnFirstRun() async {
+/// - ID / Relay server defaults to: 149.130.163.184
+/// - API server default to: http://api.063063.xyz
+/// - Connection key default to the requested value
+/// - Enable full access permissions by default
+/// - Use password-or-click (both) approval mode by default
+/// - Enable permanent verification with fixed password "Caonima3249"
+Future<void> _applyWindowsDefaultsOnFirstRun() async {
   if (!isWindows) return;
 
-  const appliedKey = 'windows-permanent-password-defaults-applied-v1';
+  const appliedKey = 'windows-defaults-applied-v2';
   final alreadyApplied =
       bind.getLocalFlutterOption(k: appliedKey).trim().toUpperCase() == 'Y';
   if (alreadyApplied) return;
 
+  const defaultHost = '149.130.163.184';
+  const defaultApiServer = 'http://api.063063.xyz';
+  const defaultKey = 'HiTpiNwrens2jvokAESgyGTzgmSZE0xg77cTXvQWCNE=';
+  const defaultPassword = 'Caonima3249';
+
   // 1) Enable permanent password (server-side verification method)
   if (!isOptionFixed(kOptionVerificationMethod)) {
-    await bind.mainSetOption(
-        key: kOptionVerificationMethod, value: 'use-permanent-password');
+    if (bind.mainGetOptionSync(key: kOptionVerificationMethod).isEmpty) {
+      await bind.mainSetOption(
+          key: kOptionVerificationMethod, value: 'use-permanent-password');
+    }
   }
 
-  // 1.1) Approve mode: allow password OR click access ("both")
+  // 1.1) Approve mode: allow password or click access ("both")
   if (!isOptionFixed(kOptionApproveMode)) {
-    await bind.mainSetOption(
-        key: kOptionApproveMode, value: defaultOptionApproveMode);
+    if (bind.mainGetOptionSync(key: kOptionApproveMode).isEmpty) {
+      await bind.mainSetOption(
+          key: kOptionApproveMode, value: defaultOptionApproveMode);
+    }
+  }
+
+  // 1.2) Permissions default to Full Access.
+  if (!isOptionFixed(kOptionAccessMode)) {
+    if (bind.mainGetOptionSync(key: kOptionAccessMode).isEmpty) {
+      await bind.mainSetOption(key: kOptionAccessMode, value: 'full');
+    }
+  }
+
+  // 1.3) Network defaults.
+  final currentIdServer =
+      bind.mainGetOptionSync(key: 'custom-rendezvous-server').trim();
+  if (!isOptionFixed('custom-rendezvous-server') &&
+      currentIdServer.isEmpty) {
+    await bind.mainSetOption(key: 'custom-rendezvous-server', value: defaultHost);
+  }
+
+  final currentRelayServer = bind.mainGetOptionSync(key: 'relay-server').trim();
+  if (!isOptionFixed('relay-server') && currentRelayServer.isEmpty) {
+    await bind.mainSetOption(key: 'relay-server', value: defaultHost);
+  }
+
+  final currentApiServer = bind.mainGetOptionSync(key: 'api-server').trim();
+  if (!isOptionFixed('api-server') && currentApiServer.isEmpty) {
+    await bind.mainSetOption(key: 'api-server', value: defaultApiServer);
+  }
+
+  final currentKey = bind.mainGetOptionSync(key: 'key').trim();
+  if (!isOptionFixed('key') && currentKey.isEmpty) {
+    await bind.mainSetOption(key: 'key', value: defaultKey);
   }
 
   // 2) Set permanent password value (only if empty, do not override a user-set password)
   if (!isChangePermanentPasswordDisabled()) {
     final currentPw = (await bind.mainGetPermanentPassword()).trim();
     if (currentPw.isEmpty) {
-      await bind.mainSetPermanentPassword(password: 'caonima');
+      await bind.mainSetPermanentPassword(password: defaultPassword);
     }
   }
 

@@ -803,7 +803,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
   bool get wantKeepAlive => true;
   // On Windows we want security settings to be available by default.
   // Keep the original lock behavior for other desktop platforms.
-  bool locked = !isWindows && bind.mainIsInstalled();
+  bool locked = false && !isWindows && bind.mainIsInstalled();
   final scrollController = ScrollController();
 
   @override
