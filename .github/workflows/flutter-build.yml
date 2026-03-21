@@ -468,13 +468,14 @@ jobs:
               reltype: release,
               suffix: "",
             }
-          - {
-              arch: armv7,
-              target: armv7-linux-androideabi,
-              os: ubuntu-24.04,
-              reltype: release,
-              suffix: "",
-            }
+          # 暂时禁用 armv7 Android APK 构建（以后会启用）
+          # - {
+          #     arch: armv7,
+          #     target: armv7-linux-androideabi,
+          #     os: ubuntu-24.04,
+          #     reltype: release,
+          #     suffix: "",
+          #   }
     steps:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
@@ -741,7 +742,8 @@ jobs:
   build-rustdesk-android-universal:
     needs: [build-rustdesk-android]
     name: build rustdesk android universal apk
-    if: ${{ inputs.upload-artifact }}
+    # 暂时禁用 Android universal APK 构建（以后会启用）
+    if: false
     runs-on: ubuntu-24.04
     env:
       reltype: release

@@ -1518,7 +1518,9 @@ class _Network extends StatefulWidget {
 class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
-  bool locked = !isWeb && bind.mainIsInstalled();
+  // Windows: do not require "Unlock Network Settings" to edit network options.
+  // Keep the lock behavior for installed non-Windows desktop builds.
+  bool locked = !isWeb && !isWindows && bind.mainIsInstalled();
 
   final scrollController = ScrollController();
 

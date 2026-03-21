@@ -905,7 +905,7 @@ impl Config {
         #[cfg(any(target_os = "android", target_os = "ios"))]
         {
             // Mobile: generate a short, human-friendly device ID.
-            // Requirement: random 4 lowercase letters a-z.
+            // Requirement: random 6 lowercase letters a-z.
             let mut rng = rand::thread_rng();
             let new_id: String = (0..6)
                 .map(|_| char::from(b'a' + rng.gen_range(0..26) as u8))
@@ -1059,6 +1059,21 @@ impl Config {
 
     pub fn get_id() -> String {
         let mut id = CONFIG.read().unwrap().id.clone();
+
+        // Mobile migration: previously we generated 4-letter IDs. If an existing
+        // stored ID is shorter than 6, upgrade it so it satisfies server-side
+        // minimum length checks.
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        {
+            if !id.is_empty() && id.len() < 6 {
+                if let Some(tmp) = Config::gen_id() {
+                    id = tmp;
+                    Config::set_id(&id);
+                }
+                return id;
+            }
+        }
+
         if id.is_empty() {
             if let Some(tmp) = Config::gen_id() {
                 id = tmp;
@@ -1140,7 +1155,7 @@ impl Config {
         let new_id: String = {
             #[cfg(any(target_os = "android", target_os = "ios"))]
             {
-                // Mobile: keep consistent with auto-id format (4 lowercase letters a-z).
+                // Mobile: keep consistent with auto-id format (6 lowercase letters a-z).
                 (0..6)
                     .map(|_| char::from(b'a' + rng.gen_range(0..26) as u8))
                     .collect()
